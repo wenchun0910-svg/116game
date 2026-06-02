@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>櫻花盃 國小資訊應用競賽</title>
+    <title>國小資訊應用競賽</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts: Noto Serif TC (Japanese/Wafu Aesthetic) -->
@@ -110,6 +110,10 @@
             content: ''; position: absolute; bottom: -4px; left: 0; width: 40px; height: 2px; background-color: #86A6C1;
         }
 
+        /* 富文本編輯器內容樣式 (首頁公告用) */
+        .rich-text-content b { font-weight: 900; }
+        .rich-text-content font { line-height: 1.5; }
+
         /* Toast Animation */
         .toast-enter { transform: translateY(100%); opacity: 0; }
         .toast-enter-active { transform: translateY(0); opacity: 1; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
@@ -123,7 +127,8 @@
     <nav class="bg-ai border-b border-mizu sticky top-0 z-40 text-washi shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
-                <div class="flex items-center cursor-pointer transition hover:text-seiji" onclick="navigate('home')">
+                <!-- 點擊 Logo 預設導向 作品大廳 ('works') -->
+                <div class="flex items-center cursor-pointer transition hover:text-seiji" onclick="navigate('works')">
                     <i class="fa-solid fa-water text-seiji text-xl mr-3"></i>
                     <span id="nav-brand-text" class="font-bold text-xl tracking-widest">櫻花盃<span class="text-sm ml-2 hidden sm:inline font-normal text-mizu">資訊應用競賽</span></span>
                 </div>
@@ -145,7 +150,7 @@
     <!-- Footer -->
     <footer class="bg-kachi text-mizu py-8 text-center text-xs border-t border-ai mt-auto">
         <p id="footer-brand-text" class="tracking-widest mb-2">© 2026 櫻花盃 國小資訊應用競賽</p>
-        <p class="text-gray-500">青き志、未来を創る (Blue Ambition Creates the Future)</p>
+        <p class="text-gray-500"></p>
     </footer>
 
     <!-- Toast Notification Container -->
@@ -156,7 +161,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-           const firebaseConfig = {
+            const firebaseConfig = {
   apiKey: "AIzaSyDrvKnxeqMEvJmcfwbl1bpKP8a2BXrtdb8",
   authDomain: "game-3b68a.firebaseapp.com",
   projectId: "game-3b68a",
@@ -172,7 +177,7 @@
         const db = getFirestore(app);
 
         const state = {
-            currentPage: 'home',
+            currentPage: 'works', // ★ 預設首頁設定為「作品大廳」
             currentUser: null,
             authUser: null,
             data: { news: [], categories: [], works: [], users: [], settings: {} },
@@ -183,7 +188,6 @@
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
             
-            // Blue theme toast
             const bgColor = type === 'success' ? 'bg-ai' : 'bg-red-900';
             const textColor = 'text-washi';
             const icon = type === 'success' ? 'fa-check' : 'fa-exclamation-triangle';
@@ -314,10 +318,10 @@
                 case 'home': content.innerHTML = tmplHome(); break;
                 case 'works': content.innerHTML = tmplWorks(); break;
                 case 'login': content.innerHTML = tmplLogin(); break;
-                case 'admin': content.innerHTML = state.currentUser?.role === 'admin' ? tmplAdmin() : tmplHome(); break;
-                case 'student': content.innerHTML = state.currentUser?.role === 'student' ? tmplStudent() : tmplHome(); break;
-                case 'judge': content.innerHTML = state.currentUser?.role === 'judge' ? tmplJudge() : tmplHome(); break;
-                default: content.innerHTML = tmplHome();
+                case 'admin': content.innerHTML = state.currentUser?.role === 'admin' ? tmplAdmin() : tmplWorks(); break;
+                case 'student': content.innerHTML = state.currentUser?.role === 'student' ? tmplStudent() : tmplWorks(); break;
+                case 'judge': content.innerHTML = state.currentUser?.role === 'judge' ? tmplJudge() : tmplWorks(); break;
+                default: content.innerHTML = tmplWorks();
             }
         };
 
@@ -333,8 +337,8 @@
             if(footerBrand) footerBrand.innerText = `© 2026 ${mainT} ${subT}`;
 
             let html = `
-                <button onclick="navigate('home')" class="${activeClass('home')} tracking-widest">首頁</button>
                 <button onclick="navigate('works')" class="${activeClass('works')} tracking-widest hidden sm:inline-block">作品大廳</button>
+                <button onclick="navigate('home')" class="${activeClass('home')} tracking-widest">最新消息</button>
             `;
 
             if (!state.currentUser) {
@@ -352,15 +356,22 @@
         };
 
         const tmplHome = () => {
-            const newsHtml = state.data.news.sort((a,b) => b.createdAt - a.createdAt).map(n => `
+            const newsHtml = state.data.news.sort((a,b) => b.createdAt - a.createdAt).map(n => {
+                // 渲染超連結附件按鈕
+                const attachmentsHtml = (n.attachments || []).map(att => 
+                    `<a href="${escapeHtml(att.url)}" target="_blank" class="inline-block mt-3 mr-2 text-xs border border-mizu text-ai px-4 py-1.5 hover:bg-mizu hover:text-white transition shadow-sm font-bold tracking-widest"><i class="fa-solid fa-link mr-2"></i>${escapeHtml(att.name)}</a>`
+                ).join('');
+
+                return `
                 <div class="wafu-card p-6 mb-6">
                     <h3 class="text-xl font-bold mb-2 text-ai">${escapeHtml(n.title)}</h3>
                     <p class="text-xs text-mizu mb-4 flex items-center">
                         <i class="fa-regular fa-clock mr-2"></i> ${new Date(n.createdAt).toLocaleDateString('zh-TW')}
                     </p>
-                    <p class="text-gray-700 whitespace-pre-wrap leading-relaxed">${escapeHtml(n.content)}</p>
+                    <div class="text-gray-700 leading-relaxed rich-text-content">${n.content}</div>
+                    ${attachmentsHtml ? `<div class="mt-4 pt-4 border-t border-gray-100">${attachmentsHtml}</div>` : ''}
                 </div>
-            `).join('') || `
+            `}).join('') || `
                 <div class="text-center p-10 bg-white border border-mizu text-mizu">
                     <i class="fa-solid fa-fan text-3xl mb-4 opacity-50"></i>
                     <p class="tracking-widest">尚無公告消息</p>
@@ -387,7 +398,6 @@
         };
 
         window.currentCategoryFilter = window.currentCategoryFilter || '';
-
         window.handleFilterChange = (val) => {
             window.currentCategoryFilter = val;
             render();
@@ -605,8 +615,31 @@
                         <h3 class="font-bold text-ai mb-4 text-sm tracking-widest flex items-center"><i class="fa-solid fa-bullhorn mr-2"></i>發佈最新消息</h3>
                         <form onsubmit="handleAddNews(event)" class="space-y-4">
                             <div><label class="block text-xs text-gray-600 mb-1">標題</label><input type="text" id="add-n-title" required class="wafu-input text-sm"></div>
-                            <div><label class="block text-xs text-gray-600 mb-1">內容</label><textarea id="add-n-content" required class="wafu-input text-sm h-24"></textarea></div>
-                            <button type="submit" class="wafu-btn text-sm tracking-widest px-8">發佈公告</button>
+                            
+                            <div>
+                                <label class="block text-xs text-gray-600 mb-1">內容 (支援格式調整)</label>
+                                <!-- 富文本工具列 -->
+                                <div class="flex space-x-2 mb-2 p-2 border border-mizu bg-gray-50 text-ai shadow-sm">
+                                    <button type="button" onclick="document.execCommand('bold', false, null)" class="px-3 py-1 hover:bg-gray-200 transition" title="粗體"><i class="fa-solid fa-bold"></i></button>
+                                    <button type="button" onclick="document.execCommand('fontSize', false, '5')" class="px-3 py-1 hover:bg-gray-200 transition" title="放大字體"><i class="fa-solid fa-text-height"></i></button>
+                                    <button type="button" onclick="document.execCommand('fontSize', false, '3')" class="px-3 py-1 hover:bg-gray-200 transition" title="正常字體"><i class="fa-solid fa-font"></i></button>
+                                    <input type="color" onchange="document.execCommand('foreColor', false, this.value)" class="w-8 h-8 p-1 border-none cursor-pointer bg-transparent" title="變更文字顏色">
+                                </div>
+                                <!-- 內容編輯區 -->
+                                <div id="add-n-content" contenteditable="true" class="wafu-input text-sm min-h-[120px] bg-white outline-none p-3 shadow-inner" style="border-color: #86A6C1; overflow-y:auto;"></div>
+                            </div>
+
+                            <div class="border-t border-mizu pt-4 mt-2">
+                                <div class="flex justify-between items-center mb-3">
+                                    <label class="block text-xs font-bold text-ai">🔗 附加檔案 (超連結網址)</label>
+                                    <button type="button" onclick="addLinkField()" class="text-xs text-ai border border-ai px-3 py-1 hover:bg-gray-100 transition"><i class="fa-solid fa-plus mr-1"></i>新增超連結</button>
+                                </div>
+                                <div id="link-fields-container" class="space-y-3">
+                                    <!-- 動態產生超連結欄位的地方 -->
+                                </div>
+                            </div>
+                            
+                            <button type="submit" class="wafu-btn text-sm tracking-widest px-8 w-full">確認發佈公告</button>
                         </form>
                     </div>
                     <div class="bg-white border border-mizu">${newsListHtml}</div>
@@ -859,7 +892,7 @@
         window.handleLogout = () => {
             state.currentUser = null;
             showToast('已登出系統');
-            navigate('works');
+            navigate('works'); // 登出後導航回預設大廳
         };
 
         window.handleAddUser = async (e) => {
@@ -959,6 +992,7 @@
             } catch (err) { console.error(err); showToast('更新失敗', 'error'); }
         };
 
+        // 動態新增超連結欄位
         window.addLinkField = () => {
             const container = document.getElementById('link-fields-container');
             const div = document.createElement('div');
@@ -1034,7 +1068,7 @@
             const getCatName = (id) => state.data.categories.find(c => c.id === id)?.name || '未分類';
             const getStudentName = (id) => state.data.users.find(u => u.id === id)?.name || '未知參賽者';
 
-            let csv = "\uFEFF"; // 加上 BOM (Byte Order Mark) 使 Excel 能夠直接正常讀取 UTF-8
+            let csv = "\uFEFF"; 
             csv += "比賽項目,參賽學生,平均分數,給予獎項,公開顯示,雲端作品連結\n";
 
             const worksWithScores = state.data.works.map(w => {
@@ -1053,14 +1087,12 @@
                 const award = w.award || '無';
                 const isPub = w.isPublic ? '是' : '否';
                 
-                // 處理字串中可能有逗號導致跑版的問題 (加上引號)
                 const row = [cat, stu, w.avgScore, award, isPub, w.driveLink]
                             .map(v => `"${String(v).replace(/"/g, '""')}"`)
                             .join(",");
                 csv += row + "\n";
             });
 
-            // 產生下載檔案
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
@@ -1075,7 +1107,6 @@
         window.updateJudgeCategory = async (userId, newCatId) => {
             if (!state.authUser || state.currentUser?.role !== 'admin') return;
             try {
-                // 如果選項是空白，則更新為不指定(即代表全部項目)
                 await updateDoc(getDocRef('users', userId), {
                     assignedCategoryId: newCatId || null
                 });
@@ -1145,7 +1176,6 @@
             const studentName = state.data.users.find(u=>u.id===work.studentId)?.name || '未知參賽者';
             const displayTitle = `${catName} - ${studentName}`;
             
-            // 彈跳視窗的獎項標籤顯示 (同步放大優等樣式)
             let awardBadge = '';
             if (work.award === '優等') awardBadge = `<span class="bg-[#fef9e7] text-[#B8860B] border-2 border-[#D4AF37] px-4 py-1.5 text-sm tracking-widest ml-3 align-middle font-bold inline-block shadow-sm"><i class="fa-solid fa-crown mr-2 text-[#D4AF37]"></i>優等</span>`;
             else if (work.award === '佳作') awardBadge = `<span class="bg-gray-200 text-gray-700 border border-gray-400 px-3 py-1 text-xs tracking-widest ml-3 align-middle font-bold inline-block"><i class="fa-solid fa-medal mr-1"></i>佳作</span>`;

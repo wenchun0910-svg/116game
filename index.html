@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>櫻花盃 國小資訊應用競賽</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Noto Serif TC for Japanese/Traditional Chinese aesthetic -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;600;900&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'washi': '#F9F8F4',      /* 和紙白 */
+                        'sumi': '#2C2A29',       /* 墨黑 */
+                        'torii': '#C0392B',      /* 鳥居紅 */
+                        'matcha': '#4F6F52',     /* 抹茶綠 */
+                        'ai': '#2C3E50',         /* 藍染 */
+                        'gold': '#D4AF37'        /* 金箔 */
+                    },
+                    fontFamily: {
+                        'serif': ['"Noto Serif TC"', 'serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #F9F8F4; color: #2C2A29; }
+        .japanese-border { position: relative; }
+        .japanese-border::after {
+            content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 4px;
+            background: repeating-linear-gradient(45deg, #C0392B, #C0392B 10px, #F9F8F4 10px, #F9F8F4 20px);
+        }
+        .shoji-panel { background: #fff; border: 2px solid #e0dcd3; box-shadow: 4px 4px 0px rgba(44,42,41,0.1); }
+        .vertical-text { writing-mode: vertical-rl; text-orientation: upright; }
+        /* Toast Animation */
+        .toast-enter { transform: translateY(100%); opacity: 0; }
+        .toast-enter-active { transform: translateY(0); opacity: 1; transition: all 0.3s ease-out; }
+        .toast-leave { transform: translateY(0); opacity: 1; }
+        .toast-leave-active { transform: translateY(100%); opacity: 0; transition: all 0.3s ease-in; }
+    </style>
+</head>
+<body class="font-serif min-h-screen flex flex-col">
+
+    <!-- Navigation -->
+    <nav class="bg-sumi text-washi shadow-md sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center cursor-pointer" onclick="navigate('home')">
+                    <i class="fa-solid fa-fan text-torii text-2xl mr-3"></i>
+                    <span class="font-bold text-xl tracking-widest">櫻花盃<span class="text-sm font-normal ml-2 hidden sm:inline">國小資訊應用競賽</span></span>
+                </div>
+                <div class="flex items-center space-x-2 sm:space-x-6" id="nav-menu">
+                    <!-- Nav items injected by JS -->
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" id="app-content">
+        <div class="flex justify-center items-center h-64">
+            <i class="fa-solid fa-circle-notch fa-spin text-4xl text-torii"></i>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-sumi text-washi py-6 text-center text-sm">
+        <p>© 2026 櫻花盃 國小資訊應用競賽系統. All Rights Reserved.</p>
+        <p class="text-gray-400 mt-1">Japanese Zen Aesthetic Design</p>
+    </footer>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2"></div>
+
+    <!-- Firebase SDK Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Environment variables setup
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Application State
+        const state = {
+            currentPage: 'home',
+            currentUser: null, // Simulated user from Firestore for custom roles
+            authUser: null, // Firebase anonymous user
+            data: {
+                news: [],
+                categories: [],
+                works: [],
+                users: []
+            },
+            unsubscribes: []
+        };
+
+        // Utility Functions
+        window.showToast = (message, type = 'success') => {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-matcha' : 'bg-torii';
+            const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+            
+            toast.className = `${bgColor} text-washi px-6 py-3 rounded shadow-lg flex items-center space-x-3 toast-enter`;
+            toast.innerHTML = `<i class="fa-solid ${icon}"></i><span>${message}</span>`;
+            
+            container.appendChild(toast);
+            
+            // Trigger animation
+            requestAnimationFrame(() => {
+                toast.classList.remove('toast-enter');
+                toast.classList.add('toast-enter-active');
+            });
+
+            setTimeout(() => {
+                toast.classList.remove('toast-enter-active');
+                toast.classList.add('toast-leave-active');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        };
+
+        window.navigate = (page) => {
+            state.currentPage = page;
+            render();
+        };
+
+        const getCollectionRef = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
+        const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
+
+        // Authentication & Initialization
+        const initAuth = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Auth error:", error);
+                showToast("系統連線錯誤", "error");
+            }
+        };
+
+        onAuthStateChanged(auth, async (user) => {
+            state.authUser = user;
+            if (user) {
+                setupRealtimeListeners();
+            } else {
+                cleanupListeners();
+            }
+        });
+
+        // Real-time Database Listeners
+        const setupRealtimeListeners = () => {
+            cleanupListeners(); // Clear existing
+            
+            const collections = ['news', 'categories', 'works', 'users'];
+            
+            collections.forEach(col => {
+                const unsubscribe = onSnapshot(getCollectionRef(col), (snapshot) => {
+                    state.data[col] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    
+                    // Special logic: Auto-create admin if users are empty
+                    if (col === 'users' && state.data.users.length === 0) {
+                        createDefaultAdmin();
+                    }
+                    
+                    // If current user is deleted or role changed, handle logout
+                    if (col === 'users' && state.currentUser) {
+                        const updatedMe = state.data.users.find(u => u.id === state.currentUser.id);
+                        if (!updatedMe) {
+                            window.handleLogout();
+                            showToast("您的帳號已被移除", "error");
+                        } else {
+                            state.currentUser = updatedMe; // Update in case name/role changed
+                        }
+                    }
+
+                    render();
+                }, (error) => {
+                    console.error(`Error listening to ${col}:`, error);
+                });
+                state.unsubscribes.push(unsubscribe);
+            });
+        };
+
+        const cleanupListeners = () => {
+            state.unsubscribes.forEach(unsub => unsub());
+            state.unsubscribes = [];
+        };
+
+        const createDefaultAdmin = async () => {
+            try {
+                await addDoc(getCollectionRef('users'), {
+                    username: 'admin',
+                    password: 'admin123',
+                    name: '系統管理員',
+                    role: 'admin',
+                    createdAt: Date.now()
+                });
+                console.log("Default admin created.");
+            } catch (e) { console.error(e); }
+        };
+
+        // --- Rendering Logic ---
+        const render = () => {
+            if (!state.authUser) return; // Wait for firebase auth
+            
+            renderNav();
+            
+            const content = document.getElementById('app-content');
+            switch (state.currentPage) {
+                case 'home': content.innerHTML = tmplHome(); break;
+                case 'works': content.innerHTML = tmplWorks(); break;
+                case 'login': content.innerHTML = tmplLogin(); break;
+                case 'admin': content.innerHTML = state.currentUser?.role === 'admin' ? tmplAdmin() : tmplHome(); break;
+                case 'student': content.innerHTML = state.currentUser?.role === 'student' ? tmplStudent() : tmplHome(); break;
+                case 'judge': content.innerHTML = state.currentUser?.role === 'judge' ? tmplJudge() : tmplHome(); break;
+                default: content.innerHTML = tmplHome();
+            }
+        };
+
+        const renderNav = () => {
+            const menu = document.getElementById('nav-menu');
+            let html = `
+                <button onclick="navigate('home')" class="hover:text-torii transition px-2 py-1 ${state.currentPage==='home'?'border-b-2 border-torii':''}">首頁</button>
+                <button onclick="navigate('works')" class="hover:text-torii transition px-2 py-1 ${state.currentPage==='works'?'border-b-2 border-torii':''}">作品大廳</button>
+            `;
+
+            if (!state.currentUser) {
+                html += `<button onclick="navigate('login')" class="hover:text-torii transition px-2 py-1 ${state.currentPage==='login'?'border-b-2 border-torii':''}">登入</button>`;
+            } else {
+                const roleLabels = { admin: '管理系統', student: '學生專區', judge: '評分專區' };
+                const rolePage = state.currentUser.role;
+                html += `
+                    <button onclick="navigate('${rolePage}')" class="text-gold hover:text-torii transition px-2 py-1 ${state.currentPage===rolePage?'border-b-2 border-torii':''}">${roleLabels[rolePage]}</button>
+                    <span class="text-sm text-gray-400 hidden md:inline border-l pl-3 border-gray-600">${state.currentUser.name}</span>
+                    <button onclick="handleLogout()" class="hover:text-torii transition px-2 py-1"><i class="fa-solid fa-sign-out-alt"></i></button>
+                `;
+            }
+            menu.innerHTML = html;
+        };
+
+        // --- View Templates ---
+
+        const tmplHome = () => {
+            const newsHtml = state.data.news.sort((a,b) => b.createdAt - a.createdAt).map(n => `
+                <div class="shoji-panel p-6 mb-4 relative hover:-translate-y-1 transition duration-300">
+                    <div class="absolute top-0 left-0 w-2 h-full bg-torii"></div>
+                    <h3 class="text-xl font-bold mb-2 text-sumi">${escapeHtml(n.title)}</h3>
+                    <p class="text-sm text-gray-500 mb-3"><i class="fa-regular fa-calendar-alt mr-1"></i> ${new Date(n.createdAt).toLocaleDateString('zh-TW')}</p>
+                    <p class="text-gray-700 whitespace-pre-wrap">${escapeHtml(n.content)}</p>
+                </div>
+            `).join('') || '<p class="text-center text-gray-500 my-8">目前無最新消息。</p>';
+
+            return `
+                <div class="text-center mb-12">
+                    <h1 class="text-4xl md:text-5xl font-black text-sumi mb-4 tracking-widest">櫻花盃<br><span class="text-2xl text-torii font-bold mt-2 inline-block">國小資訊應用競賽</span></h1>
+                    <p class="text-gray-600 max-w-2xl mx-auto mt-4">激發創意，實踐科技。歡迎來到年度資訊盛會。</p>
+                </div>
+                
+                <div class="max-w-4xl mx-auto">
+                    <div class="flex items-center mb-6 japanese-border pb-2">
+                        <i class="fa-solid fa-scroll text-torii text-2xl mr-3"></i>
+                        <h2 class="text-2xl font-bold text-sumi">最新消息</h2>
+                    </div>
+                    ${newsHtml}
+                </div>
+            `;
+        };
+
+        const tmplWorks = () => {
+            const getCatName = (id) => state.data.categories.find(c => c.id === id)?.name || '未分類';
+            const getStudentName = (id) => state.data.users.find(u => u.id === id)?.name || '未知學生';
+            
+            const worksHtml = state.data.works.map(w => {
+                let totalScore = 0;
+                let scoreCount = 0;
+                if(w.scores) {
+                    Object.values(w.scores).forEach(s => { totalScore += s; scoreCount++; });
+                }
+                const avgScore = scoreCount > 0 ? (totalScore / scoreCount).toFixed(1) : '尚無評分';
+
+                return `
+                <div class="shoji-panel p-5 flex flex-col justify-between group">
+                    <div>
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="bg-ai text-washi text-xs px-2 py-1 rounded">${escapeHtml(getCatName(w.categoryId))}</span>
+                            <span class="text-gray-500 text-sm"><i class="fa-regular fa-eye text-torii"></i> ${w.views || 0}</span>
+                        </div>
+                        <h3 class="text-xl font-bold mb-2 mt-2 group-hover:text-torii transition cursor-pointer" onclick="viewWorkDetail('${w.id}')">${escapeHtml(w.title)}</h3>
+                        <p class="text-sm text-gray-600 mb-4 line-clamp-2">${escapeHtml(w.description || '無描述')}</p>
+                    </div>
+                    <div class="pt-4 border-t border-gray-200 flex justify-between items-center mt-auto">
+                        <span class="text-sm font-bold text-sumi"><i class="fa-solid fa-user-graduate mr-1"></i> ${escapeHtml(getStudentName(w.studentId))}</span>
+                        <span class="text-sm bg-gray-100 px-2 py-1 rounded text-matcha font-bold">評分: ${avgScore}</span>
+                    </div>
+                </div>
+            `}).join('') || '<div class="col-span-full text-center py-10 text-gray-500">尚無參賽作品。</div>';
+
+            return `
+                <div class="max-w-6xl mx-auto">
+                    <div class="flex items-center mb-8 japanese-border pb-2">
+                        <i class="fa-brands fa-envira text-matcha text-2xl mr-3"></i>
+                        <h2 class="text-2xl font-bold text-sumi">作品大廳</h2>
+                    </div>
+                    <p class="mb-6 text-gray-600">不需登入即可觀看所有參賽學生的精彩作品。點擊作品標題觀看詳情。</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        ${worksHtml}
+                    </div>
+                </div>
+
+                <!-- Work Detail Modal (Hidden by default) -->
+                <div id="work-modal" class="fixed inset-0 bg-sumi bg-opacity-80 z-50 hidden flex items-center justify-center p-4">
+                    <div class="shoji-panel w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 relative">
+                        <button onclick="closeWorkModal()" class="absolute top-4 right-4 text-gray-500 hover:text-torii text-2xl"><i class="fa-solid fa-times"></i></button>
+                        <div id="modal-content"></div>
+                    </div>
+                </div>
+            `;
+        };
+
+        const tmplLogin = () => `
+            <div class="max-w-md mx-auto mt-10 shoji-panel p-8">
+                <div class="text-center mb-8">
+                    <i class="fa-solid fa-torii-gate text-torii text-4xl mb-3"></i>
+                    <h2 class="text-2xl font-bold text-sumi">系統登入</h2>
+                    <p class="text-sm text-gray-500 mt-2">請輸入您的帳號與密碼</p>
+                </div>
+                <form onsubmit="handleLogin(event)" class="space-y-5">
+                    <div>
+                        <label class="block text-sm font-bold text-sumi mb-1">帳號</label>
+                        <input type="text" id="login-username" required class="w-full border border-gray-300 p-2 focus:outline-none focus:border-torii bg-[#FAF9F6]">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-sumi mb-1">密碼</label>
+                        <input type="password" id="login-password" required class="w-full border border-gray-300 p-2 focus:outline-none focus:border-torii bg-[#FAF9F6]">
+                    </div>
+                    <button type="submit" class="w-full bg-sumi text-washi font-bold py-3 hover:bg-torii transition duration-300 mt-4">登 入</button>
+                </form>
+            </div>
+        `;
+
+        const tmplAdmin = () => {
+            // Admin Tabs Setup
+            window.currentAdminTab = window.currentAdminTab || 'users';
+            
+            const tabClass = (tab) => window.currentAdminTab === tab 
+                ? 'bg-sumi text-washi px-4 py-2 font-bold rounded-t-md' 
+                : 'bg-gray-200 text-gray-600 px-4 py-2 hover:bg-gray-300 rounded-t-md cursor-pointer';
+
+            let tabContent = '';
+            
+            if (window.currentAdminTab === 'users') {
+                const usersHtml = state.data.users.map(u => `
+                    <tr class="border-b">
+                        <td class="p-2">${escapeHtml(u.name)}</td>
+                        <td class="p-2">${escapeHtml(u.username)}</td>
+                        <td class="p-2"><span class="px-2 py-1 text-xs rounded ${u.role==='admin'?'bg-torii text-washi':u.role==='judge'?'bg-ai text-washi':'bg-matcha text-washi'}">${u.role}</span></td>
+                        <td class="p-2 text-sm text-gray-500">${u.password}</td>
+                        <td class="p-2 text-right">
+                            <button onclick="deleteDocHandler('users', '${u.id}')" class="text-torii hover:text-red-800" ${u.username === 'admin' ? 'disabled title="不可刪除預設管理員"' : ''}><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `).join('');
+                tabContent = `
+                    <div class="mb-6 bg-[#FAF9F6] p-4 border border-gray-200">
+                        <h3 class="font-bold mb-3 border-b pb-2"><i class="fa-solid fa-plus mr-2 text-matcha"></i>新增帳號</h3>
+                        <form onsubmit="handleAddUser(event)" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                            <div><label class="block text-sm mb-1">姓名</label><input type="text" id="add-u-name" required class="w-full border p-2"></div>
+                            <div><label class="block text-sm mb-1">帳號</label><input type="text" id="add-u-username" required class="w-full border p-2"></div>
+                            <div><label class="block text-sm mb-1">密碼</label><input type="text" id="add-u-pwd" required class="w-full border p-2"></div>
+                            <div><label class="block text-sm mb-1">角色</label>
+                                <select id="add-u-role" class="w-full border p-2 bg-white">
+                                    <option value="student">學生</option>
+                                    <option value="judge">評審</option>
+                                    <option value="admin">管理員</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="bg-matcha text-washi p-2 font-bold hover:bg-green-700 transition">新增</button>
+                        </form>
+                    </div>
+                    <table class="w-full text-left border-collapse">
+                        <thead><tr class="bg-gray-100"><th class="p-2">姓名</th><th class="p-2">帳號</th><th class="p-2">角色</th><th class="p-2">密碼(明碼示範)</th><th class="p-2 text-right">操作</th></tr></thead>
+                        <tbody>${usersHtml}</tbody>
+                    </table>
+                `;
+            } else if (window.currentAdminTab === 'categories') {
+                const catsHtml = state.data.categories.map(c => `
+                    <tr class="border-b">
+                        <td class="p-2 font-bold">${escapeHtml(c.name)}</td>
+                        <td class="p-2 text-sm">${escapeHtml(c.description || '')}</td>
+                        <td class="p-2 text-right">
+                            <button onclick="deleteDocHandler('categories', '${c.id}')" class="text-torii hover:text-red-800"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `).join('');
+                tabContent = `
+                    <div class="mb-6 bg-[#FAF9F6] p-4 border border-gray-200">
+                        <h3 class="font-bold mb-3 border-b pb-2"><i class="fa-solid fa-plus mr-2 text-matcha"></i>新增比賽項目</h3>
+                        <form onsubmit="handleAddCategory(event)" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                            <div><label class="block text-sm mb-1">項目名稱</label><input type="text" id="add-c-name" required class="w-full border p-2"></div>
+                            <div class="md:col-span-2"><label class="block text-sm mb-1">描述</label><input type="text" id="add-c-desc" class="w-full border p-2"></div>
+                            <button type="submit" class="bg-matcha text-washi p-2 font-bold hover:bg-green-700 transition">新增</button>
+                        </form>
+                    </div>
+                    <table class="w-full text-left border-collapse">
+                        <thead><tr class="bg-gray-100"><th class="p-2">項目名稱</th><th class="p-2">描述</th><th class="p-2 text-right">操作</th></tr></thead>
+                        <tbody>${catsHtml}</tbody>
+                    </table>
+                `;
+            } else if (window.currentAdminTab === 'news') {
+                 const newsListHtml = state.data.news.sort((a,b)=>b.createdAt-a.createdAt).map(n => `
+                    <div class="border-b py-3 flex justify-between items-center">
+                        <div>
+                            <div class="font-bold">${escapeHtml(n.title)}</div>
+                            <div class="text-xs text-gray-500">${new Date(n.createdAt).toLocaleDateString()}</div>
+                        </div>
+                        <button onclick="deleteDocHandler('news', '${n.id}')" class="text-torii hover:text-red-800"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                `).join('');
+                tabContent = `
+                    <div class="mb-6 bg-[#FAF9F6] p-4 border border-gray-200">
+                        <h3 class="font-bold mb-3 border-b pb-2"><i class="fa-solid fa-plus mr-2 text-matcha"></i>發佈最新消息</h3>
+                        <form onsubmit="handleAddNews(event)" class="space-y-4">
+                            <div><label class="block text-sm mb-1">標題</label><input type="text" id="add-n-title" required class="w-full border p-2"></div>
+                            <div><label class="block text-sm mb-1">內容</label><textarea id="add-n-content" required class="w-full border p-2 h-24"></textarea></div>
+                            <button type="submit" class="bg-matcha text-washi px-6 py-2 font-bold hover:bg-green-700 transition">發佈</button>
+                        </form>
+                    </div>
+                    <div>${newsListHtml}</div>
+                `;
+            }
+
+            return `
+                <div class="max-w-5xl mx-auto">
+                    <div class="flex items-center mb-6 japanese-border pb-2">
+                        <i class="fa-solid fa-user-shield text-ai text-2xl mr-3"></i>
+                        <h2 class="text-2xl font-bold text-sumi">管理系統後台</h2>
+                    </div>
+                    
+                    <div class="flex space-x-1 mb-4 border-b border-gray-300">
+                        <button onclick="switchAdminTab('users')" class="${tabClass('users')}">帳號管理</button>
+                        <button onclick="switchAdminTab('categories')" class="${tabClass('categories')}">比賽項目管理</button>
+                        <button onclick="switchAdminTab('news')" class="${tabClass('news')}">消息管理</button>
+                    </div>
+                    
+                    <div class="shoji-panel p-6">
+                        ${tabContent}
+                    </div>
+                </div>
+            `;
+        };
+
+        const tmplStudent = () => {
+            const myWorks = state.data.works.filter(w => w.studentId === state.currentUser.id);
+            const catOptions = state.data.categories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+            
+            const worksHtml = myWorks.map(w => {
+                 const catName = state.data.categories.find(c=>c.id===w.categoryId)?.name || '未知';
+                 return `
+                    <div class="border p-4 mb-4 bg-white shadow-sm flex justify-between items-center relative">
+                        <div class="absolute left-0 top-0 bottom-0 w-1 bg-ai"></div>
+                        <div class="pl-2">
+                            <span class="text-xs bg-gray-200 px-2 py-1 rounded text-gray-700">${escapeHtml(catName)}</span>
+                            <h4 class="font-bold text-lg mt-1">${escapeHtml(w.title)}</h4>
+                            <a href="${escapeHtml(w.driveLink)}" target="_blank" class="text-blue-600 text-sm hover:underline"><i class="fa-brands fa-google-drive"></i> 雲端硬碟連結</a>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-sm text-gray-500 mb-2"><i class="fa-regular fa-eye text-torii"></i> 觀看次數: ${w.views || 0}</div>
+                            <button onclick="deleteDocHandler('works', '${w.id}')" class="text-torii text-sm hover:underline"><i class="fa-solid fa-trash"></i> 刪除作品</button>
+                        </div>
+                    </div>
+                 `;
+            }).join('') || '<p class="text-gray-500 text-center py-4">您尚未上傳任何作品。</p>';
+
+            return `
+                <div class="max-w-4xl mx-auto">
+                    <div class="flex items-center mb-6 japanese-border pb-2">
+                        <i class="fa-solid fa-user-graduate text-matcha text-2xl mr-3"></i>
+                        <h2 class="text-2xl font-bold text-sumi">學生專區 - ${escapeHtml(state.currentUser.name)}</h2>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="md:col-span-1">
+                            <div class="shoji-panel p-5 bg-[#FAF9F6]">
+                                <h3 class="font-bold mb-4 border-b pb-2"><i class="fa-solid fa-cloud-arrow-up text-ai mr-2"></i>上傳新作品</h3>
+                                <form onsubmit="handleUploadWork(event)" class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm mb-1 font-bold">選擇比賽項目</label>
+                                        <select id="up-category" required class="w-full border p-2 bg-white">
+                                            <option value="">-- 請選擇 --</option>
+                                            ${catOptions}
+                                        </select>
+                                    </div>
+                                    <div><label class="block text-sm mb-1 font-bold">作品標題</label><input type="text" id="up-title" required class="w-full border p-2"></div>
+                                    <div><label class="block text-sm mb-1 font-bold">作品介紹 (選填)</label><textarea id="up-desc" class="w-full border p-2 h-20"></textarea></div>
+                                    <div><label class="block text-sm mb-1 font-bold">雲端硬碟連結 (URL)</label><input type="url" id="up-link" required class="w-full border p-2" placeholder="https://drive.google.com/..."></div>
+                                    <button type="submit" class="w-full bg-ai text-washi py-2 font-bold hover:bg-blue-900 transition">確認上傳</button>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="md:col-span-2">
+                            <h3 class="font-bold text-xl mb-4 text-sumi">我的作品清單</h3>
+                            ${worksHtml}
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        const tmplJudge = () => {
+             const getCatName = (id) => state.data.categories.find(c => c.id === id)?.name || '未分類';
+             const getStudentName = (id) => state.data.users.find(u => u.id === id)?.name || '未知學生';
+             const myId = state.currentUser.id;
+
+             const judgeWorksHtml = state.data.works.map(w => {
+                 const myScore = (w.scores && w.scores[myId]) ? w.scores[myId] : '';
+                 return `
+                    <tr class="border-b hover:bg-gray-50 transition">
+                        <td class="p-3">
+                            <span class="text-xs bg-gray-200 px-2 py-1 rounded block w-max mb-1">${escapeHtml(getCatName(w.categoryId))}</span>
+                            <a href="${escapeHtml(w.driveLink)}" target="_blank" class="font-bold text-blue-700 hover:underline">${escapeHtml(w.title)} <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i></a>
+                        </td>
+                        <td class="p-3 text-sm">${escapeHtml(getStudentName(w.studentId))}</td>
+                        <td class="p-3 text-sm max-w-xs truncate" title="${escapeHtml(w.description)}">${escapeHtml(w.description || '')}</td>
+                        <td class="p-3">
+                            <div class="flex items-center space-x-2">
+                                <input type="number" min="0" max="100" id="score-${w.id}" value="${myScore}" class="w-20 border p-1 text-center" placeholder="0-100">
+                                <button onclick="handleScore('${w.id}')" class="bg-torii text-washi px-3 py-1 text-sm font-bold rounded hover:bg-red-800">送出評分</button>
+                            </div>
+                        </td>
+                    </tr>
+                 `;
+             }).join('');
+
+             return `
+                <div class="max-w-6xl mx-auto">
+                    <div class="flex items-center mb-6 japanese-border pb-2">
+                        <i class="fa-solid fa-gavel text-gold text-2xl mr-3"></i>
+                        <h2 class="text-2xl font-bold text-sumi">評分專區 - ${escapeHtml(state.currentUser.name)}老師</h2>
+                    </div>
+                    
+                    <div class="shoji-panel bg-white p-4 overflow-x-auto">
+                        <table class="w-full text-left border-collapse min-w-[800px]">
+                            <thead>
+                                <tr class="bg-gray-100 border-b-2 border-gray-300">
+                                    <th class="p-3">作品標題與項目</th>
+                                    <th class="p-3">參賽學生</th>
+                                    <th class="p-3">作品簡介</th>
+                                    <th class="p-3">我的評分 (0-100)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${judgeWorksHtml || '<tr><td colspan="4" class="text-center p-6 text-gray-500">目前尚無作品可評分。</td></tr>'}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+             `;
+        };
+
+
+        // --- Actions & Handlers ---
+
+        window.switchAdminTab = (tab) => {
+            window.currentAdminTab = tab;
+            render();
+        };
+
+        window.handleLogin = (e) => {
+            e.preventDefault();
+            const un = document.getElementById('login-username').value.trim();
+            const pw = document.getElementById('login-password').value;
+            
+            // Due to constraints of single file client-side app, we use Firestore document matching for roles.
+            // In a production app, use Firebase Auth with Cloud Functions for claims.
+            const user = state.data.users.find(u => u.username === un && u.password === pw);
+            if (user) {
+                state.currentUser = user;
+                showToast(`歡迎回來，${user.name} (${user.role})`);
+                navigate(user.role); // navigate to their specific dashboard
+            } else {
+                showToast('帳號或密碼錯誤', 'error');
+            }
+        };
+
+        window.handleLogout = () => {
+            state.currentUser = null;
+            showToast('已登出系統');
+            navigate('home');
+        };
+
+        window.handleAddUser = async (e) => {
+            e.preventDefault();
+            if (!state.authUser || state.currentUser?.role !== 'admin') return;
+            const data = {
+                name: document.getElementById('add-u-name').value.trim(),
+                username: document.getElementById('add-u-username').value.trim(),
+                password: document.getElementById('add-u-pwd').value,
+                role: document.getElementById('add-u-role').value,
+                createdAt: Date.now()
+            };
+            
+            if (state.data.users.some(u => u.username === data.username)) {
+                showToast('帳號已存在，請更換帳號', 'error');
+                return;
+            }
+
+            try {
+                await addDoc(getCollectionRef('users'), data);
+                showToast('帳號新增成功');
+                e.target.reset();
+            } catch (err) { console.error(err); showToast('新增失敗', 'error'); }
+        };
+
+        window.handleAddCategory = async (e) => {
+            e.preventDefault();
+            if (!state.authUser || state.currentUser?.role !== 'admin') return;
+            try {
+                await addDoc(getCollectionRef('categories'), {
+                    name: document.getElementById('add-c-name').value.trim(),
+                    description: document.getElementById('add-c-desc').value.trim(),
+                    createdAt: Date.now()
+                });
+                showToast('比賽項目新增成功');
+                e.target.reset();
+            } catch (err) { console.error(err); showToast('新增失敗', 'error'); }
+        };
+
+        window.handleAddNews = async (e) => {
+            e.preventDefault();
+            if (!state.authUser || state.currentUser?.role !== 'admin') return;
+            try {
+                await addDoc(getCollectionRef('news'), {
+                    title: document.getElementById('add-n-title').value.trim(),
+                    content: document.getElementById('add-n-content').value.trim(),
+                    createdAt: Date.now()
+                });
+                showToast('最新消息發佈成功');
+                e.target.reset();
+            } catch (err) { console.error(err); showToast('發佈失敗', 'error'); }
+        };
+
+        window.handleUploadWork = async (e) => {
+            e.preventDefault();
+            if (!state.authUser || state.currentUser?.role !== 'student') return;
+            try {
+                await addDoc(getCollectionRef('works'), {
+                    studentId: state.currentUser.id,
+                    categoryId: document.getElementById('up-category').value,
+                    title: document.getElementById('up-title').value.trim(),
+                    description: document.getElementById('up-desc').value.trim(),
+                    driveLink: document.getElementById('up-link').value.trim(),
+                    views: 0,
+                    scores: {}, // object storing judgeId: score
+                    createdAt: Date.now()
+                });
+                showToast('作品上傳成功');
+                e.target.reset();
+            } catch (err) { console.error(err); showToast('上傳失敗', 'error'); }
+        };
+
+        window.handleScore = async (workId) => {
+            if (!state.authUser || state.currentUser?.role !== 'judge') return;
+            const scoreInput = document.getElementById(`score-${workId}`).value;
+            const scoreNum = parseInt(scoreInput);
+            
+            if (isNaN(scoreNum) || scoreNum < 0 || scoreNum > 100) {
+                showToast('請輸入 0~100 的有效數字', 'error');
+                return;
+            }
+
+            try {
+                const workRef = getDocRef('works', workId);
+                const work = state.data.works.find(w => w.id === workId);
+                const currentScores = work.scores || {};
+                currentScores[state.currentUser.id] = scoreNum;
+                
+                await updateDoc(workRef, { scores: currentScores });
+                showToast('評分儲存成功');
+            } catch (err) { console.error(err); showToast('評分儲存失敗', 'error'); }
+        };
+
+        window.deleteDocHandler = async (colName, docId) => {
+            if (!state.authUser) return;
+            // Basic custom confirm simulation since standard confirm/alert is discouraged
+            if(confirm("確定要刪除此筆資料嗎？此操作無法還原。")) {
+                try {
+                    await deleteDoc(getDocRef(colName, docId));
+                    showToast('資料已刪除');
+                } catch (err) { console.error(err); showToast('刪除失敗', 'error'); }
+            }
+        };
+
+        window.viewWorkDetail = async (workId) => {
+            const work = state.data.works.find(w => w.id === workId);
+            if (!work) return;
+
+            // Increment View Counter in Firestore asynchronously
+            try {
+                if(state.authUser) {
+                   await updateDoc(getDocRef('works', workId), { views: (work.views || 0) + 1 });
+                }
+            } catch (e) { console.error("View increment failed", e); }
+
+            const catName = state.data.categories.find(c=>c.id===work.categoryId)?.name || '未知';
+            const studentName = state.data.users.find(u=>u.id===work.studentId)?.name || '未知學生';
+            
+            const modalContent = document.getElementById('modal-content');
+            modalContent.innerHTML = `
+                <div class="mb-4">
+                    <span class="bg-ai text-washi text-xs px-2 py-1 rounded inline-block mb-3">${escapeHtml(catName)}</span>
+                    <h2 class="text-3xl font-bold text-sumi mb-2">${escapeHtml(work.title)}</h2>
+                    <p class="text-sm text-gray-500 border-b pb-4 mb-4"><i class="fa-solid fa-user-graduate mr-1"></i> ${escapeHtml(studentName)} | <i class="fa-regular fa-eye ml-2 mr-1"></i> ${(work.views || 0) + 1} 次觀看</p>
+                </div>
+                <div class="mb-6">
+                    <h4 class="font-bold mb-2">作品簡介：</h4>
+                    <p class="text-gray-700 bg-gray-50 p-4 rounded whitespace-pre-wrap min-h-[100px] border border-gray-200">${escapeHtml(work.description || '無提供簡介')}</p>
+                </div>
+                <div class="text-center mt-8">
+                    <a href="${escapeHtml(work.driveLink)}" target="_blank" class="bg-matcha text-washi px-8 py-3 rounded font-bold hover:bg-green-800 transition shadow-md inline-block">
+                        <i class="fa-brands fa-google-drive mr-2"></i>前往雲端硬碟觀看完整作品
+                    </a>
+                </div>
+            `;
+            document.getElementById('work-modal').classList.remove('hidden');
+        };
+
+        window.closeWorkModal = () => {
+            document.getElementById('work-modal').classList.add('hidden');
+        };
+
+        // Helper
+        const escapeHtml = (unsafe) => {
+            if(!unsafe) return '';
+            return unsafe
+                 .replace(/&/g, "&amp;")
+                 .replace(/</g, "&lt;")
+                 .replace(/>/g, "&gt;")
+                 .replace(/"/g, "&quot;")
+                 .replace(/'/g, "&#039;");
+        };
+
+        // Custom confirm polyfill for UI since alert/confirm are frowned upon (using native confirm for brevity, but let's override it to be safe)
+        window.confirm = (msg) => {
+            // Because standard confirm might block iframe, we normally use a modal. 
+            // For simplicity in this robust single file, we will use native confirm, but if it fails we return true.
+            try { return window.top.confirm(msg); } catch(e) { return true; }
+        }
+
+        // Start App
+        initAuth();
+
+    </script>
+</body>
+</html>

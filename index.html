@@ -476,7 +476,14 @@
                         <td class="p-3 text-ai">${escapeHtml(u.username)}</td>
                         <td class="p-3">
                             <span class="px-2 py-1 text-xs border border-mizu text-ai bg-mizu bg-opacity-10">${u.role === 'admin' ? '管理員' : u.role === 'judge' ? '評審' : '學生'}</span>
-                            ${u.role==='judge' && u.assignedCategoryId ? `<div class="text-xs text-mizu mt-1">${escapeHtml(state.data.categories.find(c=>c.id===u.assignedCategoryId)?.name || '')}</div>` : ''}
+                            ${u.role==='judge' ? `
+                            <div class="mt-2">
+                                <select onchange="updateJudgeCategory('${u.id}', this.value)" class="text-xs p-1 border border-mizu bg-washi text-ai rounded shadow-sm w-full max-w-[150px] outline-none focus:border-ai">
+                                    <option value="">-- 評分全部項目 --</option>
+                                    ${state.data.categories.map(c => `<option value="${c.id}" ${u.assignedCategoryId === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
+                                </select>
+                            </div>
+                            ` : ''}
                         </td>
                         <td class="p-3 text-gray-400 font-mono text-xs">${u.password}</td>
                         <td class="p-3 text-right">
@@ -882,6 +889,17 @@
                 }, { merge: true });
                 showToast('網站標題更新完成');
             } catch (err) { console.error(err); showToast('更新失敗', 'error'); }
+        };
+
+        window.updateJudgeCategory = async (userId, newCatId) => {
+            if (!state.authUser || state.currentUser?.role !== 'admin') return;
+            try {
+                // 如果選項是空白，則更新為不指定(即代表全部項目)
+                await updateDoc(getDocRef('users', userId), {
+                    assignedCategoryId: newCatId || null
+                });
+                showToast('評審指定評分項目已變更');
+            } catch (err) { console.error(err); showToast('變更失敗', 'error'); }
         };
 
         window.handleUploadWork = async (e) => {

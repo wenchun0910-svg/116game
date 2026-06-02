@@ -390,7 +390,10 @@
             const getCatName = (id) => state.data.categories.find(c => c.id === id)?.name || '未分類';
             const getStudentName = (id) => state.data.users.find(u => u.id === id)?.name || '未知參賽者';
             
-            const worksHtml = state.data.works.map(w => {
+            // 只有被管理員勾選為「公開 (isPublic)」的作品才會顯示在大廳
+            const publicWorks = state.data.works.filter(w => w.isPublic === true);
+            
+            const worksHtml = publicWorks.map(w => {
                 let totalScore = 0;
                 let scoreCount = 0;
                 if(w.scores) {
@@ -398,6 +401,11 @@
                 }
                 const avgScore = scoreCount > 0 ? (totalScore / scoreCount).toFixed(1) : '審查中';
                 const displayTitle = `${getCatName(w.categoryId)} - ${getStudentName(w.studentId)}`;
+                
+                // 獎項標籤 (如果有指定)
+                let awardBadge = '';
+                if (w.award === '優等') awardBadge = `<span class="bg-[#D4AF37] bg-opacity-10 text-[#D4AF37] border border-[#D4AF37] px-1 py-0.5 ml-2 text-[10px] tracking-widest whitespace-nowrap"><i class="fa-solid fa-crown mr-1"></i>優等</span>`;
+                else if (w.award === '佳作') awardBadge = `<span class="bg-gray-200 text-gray-700 border border-gray-400 px-1 py-0.5 ml-2 text-[10px] tracking-widest whitespace-nowrap"><i class="fa-solid fa-medal mr-1"></i>佳作</span>`;
 
                 return `
                 <div class="wafu-card p-5 flex flex-col justify-between cursor-pointer" onclick="viewWorkDetail('${w.id}')">
@@ -406,7 +414,7 @@
                             <span class="bg-mizu bg-opacity-20 text-ai text-xs px-2 py-1 border border-mizu">${escapeHtml(getCatName(w.categoryId))}</span>
                             <span class="text-mizu text-xs tracking-wider"><i class="fa-solid fa-eye mr-1"></i>${w.views || 0}</span>
                         </div>
-                        <h3 class="text-lg font-bold mb-2 text-ai transition">${escapeHtml(displayTitle)}</h3>
+                        <h3 class="text-lg font-bold mb-2 text-ai transition flex items-start leading-snug">${escapeHtml(displayTitle)}${awardBadge}</h3>
                     </div>
                     <div class="pt-4 mt-6 border-t border-gray-100 flex justify-between items-center">
                         <span class="text-sm font-semibold text-gray-600">${escapeHtml(getStudentName(w.studentId))}</span>
@@ -416,7 +424,8 @@
             `}).join('') || `
                 <div class="col-span-full text-center py-16 border border-mizu border-dashed bg-white text-mizu">
                     <i class="fa-solid fa-box-open text-4xl mb-4 opacity-50"></i>
-                    <p class="tracking-widest">大廳尚無展出作品</p>
+                    <p class="tracking-widest mb-2">大廳尚無展出作品</p>
+                    <p class="text-xs text-gray-400 tracking-widest">（得獎作品由系統審查後將公開發表於此）</p>
                 </div>`;
 
             return `
@@ -463,8 +472,8 @@
             window.currentAdminTab = window.currentAdminTab || 'users';
             
             const tabClass = (tab) => window.currentAdminTab === tab 
-                ? 'bg-ai text-washi px-6 py-2 text-sm tracking-widest border border-ai' 
-                : 'bg-white text-ai px-6 py-2 text-sm tracking-widest border border-mizu hover:bg-gray-50';
+                ? 'bg-ai text-washi px-6 py-2 text-sm tracking-widest border border-ai whitespace-nowrap' 
+                : 'bg-white text-ai px-6 py-2 text-sm tracking-widest border border-mizu hover:bg-gray-50 whitespace-nowrap';
 
             let tabContent = '';
             
@@ -596,6 +605,67 @@
                         </form>
                     </div>
                 `;
+            } else if (window.currentAdminTab === 'scores') {
+                const getCatName = (id) => state.data.categories.find(c => c.id === id)?.name || '未分類';
+                const getStudentName = (id) => state.data.users.find(u => u.id === id)?.name || '未知';
+
+                // 計算每件作品的平均分數，並根據比賽項目和分數排列
+                const worksWithScores = state.data.works.map(w => {
+                    let total = 0, count = 0;
+                    if(w.scores) Object.values(w.scores).forEach(s => { total += s; count++; });
+                    const avg = count > 0 ? (total / count).toFixed(1) : 0;
+                    return { ...w, avgScore: parseFloat(avg), scoreCount: count };
+                }).sort((a, b) => {
+                    if(a.categoryId !== b.categoryId) return (a.categoryId || '').localeCompare(b.categoryId || '');
+                    return b.avgScore - a.avgScore; // 相同項目則分數高者在前
+                });
+
+                const tableRows = worksWithScores.map(w => {
+                    const isPub = w.isPublic ? 'checked' : '';
+                    return `
+                        <tr class="border-b border-gray-100 hover:bg-gray-50 text-sm transition">
+                            <td class="p-3 text-ai font-semibold align-middle">${escapeHtml(getCatName(w.categoryId))}</td>
+                            <td class="p-3 align-middle">${escapeHtml(getStudentName(w.studentId))}</td>
+                            <td class="p-3 align-middle text-ruri underline underline-offset-2"><a href="${escapeHtml(w.driveLink)}" target="_blank">檢視作品 <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i></a></td>
+                            <td class="p-3 font-bold align-middle ${w.scoreCount>0?'text-ai':'text-mizu'}">${w.scoreCount>0 ? w.avgScore : '無'}</td>
+                            <td class="p-3 align-middle">
+                                <select onchange="handleUpdateWorkField(event, '${w.id}', 'award')" class="text-xs p-1 border border-mizu bg-washi text-ai shadow-sm outline-none w-full max-w-[80px]">
+                                    <option value="" ${!w.award ? 'selected':''}>- 無 -</option>
+                                    <option value="優等" ${w.award==='優等' ? 'selected':''}>優等</option>
+                                    <option value="佳作" ${w.award==='佳作' ? 'selected':''}>佳作</option>
+                                </select>
+                            </td>
+                            <td class="p-3 text-center align-middle">
+                                <label class="cursor-pointer inline-flex items-center">
+                                    <input type="checkbox" onchange="handleUpdateWorkField(event, '${w.id}', 'isPublic')" ${isPub} class="w-4 h-4 text-ai bg-gray-100 border-mizu rounded focus:ring-ai">
+                                </label>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+                tabContent = `
+                    <div class="mb-4 flex flex-wrap gap-4 justify-between items-center border border-mizu bg-white p-4">
+                        <div>
+                            <h3 class="font-bold text-ai text-sm tracking-widest mb-1 flex items-center"><i class="fa-solid fa-ranking-star mr-2 text-seiji"></i>學生成績管理與發佈</h3>
+                            <p class="text-xs text-mizu">您可檢視總分與設定獎項；勾選「公開顯示」後，作品才會發佈至外網作品大廳。</p>
+                        </div>
+                        <button onclick="handleExportScores()" class="wafu-btn text-sm whitespace-nowrap"><i class="fa-solid fa-file-csv mr-2"></i>匯出 Excel (CSV)</button>
+                    </div>
+                    <div class="bg-white border border-mizu overflow-x-auto">
+                        <table class="w-full text-left border-collapse min-w-[600px]">
+                            <thead><tr class="bg-gray-50 border-b border-mizu text-ai text-sm">
+                                <th class="p-3 font-semibold">比賽項目</th>
+                                <th class="p-3 font-semibold">參賽學生</th>
+                                <th class="p-3 font-semibold">作品</th>
+                                <th class="p-3 font-semibold">平均分</th>
+                                <th class="p-3 font-semibold">指定獎項</th>
+                                <th class="p-3 font-semibold text-center">公開顯示</th>
+                            </tr></thead>
+                            <tbody>${tableRows || '<tr><td colspan="6" class="text-center p-8 text-mizu tracking-widest">目前尚無作品資料</td></tr>'}</tbody>
+                        </table>
+                    </div>
+                `;
             }
 
             return `
@@ -604,9 +674,10 @@
                         <i class="fa-solid fa-gear mr-3 text-seiji"></i> 系統管理後台
                     </h2>
                     
-                    <div class="flex space-x-2 mb-4 overflow-x-auto">
+                    <div class="flex space-x-2 mb-4 overflow-x-auto pb-1">
                         <button onclick="switchAdminTab('users')" class="${tabClass('users')}">帳號管理</button>
                         <button onclick="switchAdminTab('categories')" class="${tabClass('categories')}">比賽項目</button>
+                        <button onclick="switchAdminTab('scores')" class="${tabClass('scores')}">成績與作品</button>
                         <button onclick="switchAdminTab('news')" class="${tabClass('news')}">系統公告</button>
                         <button onclick="switchAdminTab('settings')" class="${tabClass('settings')}">網站設定</button>
                     </div>
@@ -891,6 +962,59 @@
             } catch (err) { console.error(err); showToast('更新失敗', 'error'); }
         };
 
+        window.handleUpdateWorkField = async (e, workId, field) => {
+            if (!state.authUser || state.currentUser?.role !== 'admin') return;
+            const value = field === 'isPublic' ? e.target.checked : e.target.value;
+            try {
+                await updateDoc(getDocRef('works', workId), { [field]: value });
+                showToast(field === 'isPublic' ? (value ? '作品已公開至大廳' : '作品已隱藏') : '獎項設定已儲存');
+            } catch (err) { console.error(err); showToast('狀態更新失敗', 'error'); }
+        };
+
+        window.handleExportScores = () => {
+            if (!state.authUser || state.currentUser?.role !== 'admin') return;
+            
+            const getCatName = (id) => state.data.categories.find(c => c.id === id)?.name || '未分類';
+            const getStudentName = (id) => state.data.users.find(u => u.id === id)?.name || '未知參賽者';
+
+            let csv = "\uFEFF"; // 加上 BOM (Byte Order Mark) 使 Excel 能夠直接正常讀取 UTF-8
+            csv += "比賽項目,參賽學生,平均分數,給予獎項,公開顯示,雲端作品連結\n";
+
+            const worksWithScores = state.data.works.map(w => {
+                let total = 0, count = 0;
+                if(w.scores) Object.values(w.scores).forEach(s => { total += s; count++; });
+                const avg = count > 0 ? (total / count).toFixed(1) : 0;
+                return { ...w, avgScore: parseFloat(avg) };
+            }).sort((a, b) => {
+                if(a.categoryId !== b.categoryId) return (a.categoryId || '').localeCompare(b.categoryId || '');
+                return b.avgScore - a.avgScore;
+            });
+
+            worksWithScores.forEach(w => {
+                const cat = getCatName(w.categoryId);
+                const stu = getStudentName(w.studentId);
+                const award = w.award || '無';
+                const isPub = w.isPublic ? '是' : '否';
+                
+                // 處理字串中可能有逗號導致跑版的問題 (加上引號)
+                const row = [cat, stu, w.avgScore, award, isPub, w.driveLink]
+                            .map(v => `"${String(v).replace(/"/g, '""')}"`)
+                            .join(",");
+                csv += row + "\n";
+            });
+
+            // 產生下載檔案
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `櫻花盃_競賽成績表_${new Date().toISOString().slice(0,10)}.csv`;
+            link.style.display = "none";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('成績表已匯出至 Excel (CSV) 格式');
+        };
+
         window.updateJudgeCategory = async (userId, newCatId) => {
             if (!state.authUser || state.currentUser?.role !== 'admin') return;
             try {
@@ -964,11 +1088,16 @@
             const studentName = state.data.users.find(u=>u.id===work.studentId)?.name || '未知參賽者';
             const displayTitle = `${catName} - ${studentName}`;
             
+            // 彈跳視窗的獎項標籤顯示
+            let awardBadge = '';
+            if (work.award === '優等') awardBadge = `<span class="bg-[#D4AF37] bg-opacity-20 text-[#D4AF37] border border-[#D4AF37] px-3 py-1 text-xs tracking-widest ml-3 align-middle font-bold inline-block"><i class="fa-solid fa-crown mr-1"></i>優等</span>`;
+            else if (work.award === '佳作') awardBadge = `<span class="bg-gray-200 text-gray-700 border border-gray-400 px-3 py-1 text-xs tracking-widest ml-3 align-middle font-bold inline-block"><i class="fa-solid fa-medal mr-1"></i>佳作</span>`;
+
             const modalContent = document.getElementById('modal-content');
             modalContent.innerHTML = `
                 <div class="mb-8 text-center border-b border-mizu pb-6 pt-4">
                     <span class="bg-mizu bg-opacity-20 text-ai text-xs px-3 py-1 border border-mizu mb-4 inline-block tracking-widest">${escapeHtml(catName)}</span>
-                    <h2 class="text-2xl font-bold text-ai mb-4">${escapeHtml(displayTitle)}</h2>
+                    <h2 class="text-2xl font-bold text-ai mb-4 leading-relaxed">${escapeHtml(displayTitle)}${awardBadge}</h2>
                     <div class="flex justify-center items-center space-x-6 text-sm">
                         <span class="text-kachi font-semibold"><i class="fa-solid fa-user-pen mr-2 text-mizu"></i>${escapeHtml(studentName)}</span>
                         <span class="text-mizu">|</span>

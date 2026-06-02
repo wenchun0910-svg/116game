@@ -86,7 +86,7 @@
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Environment variables setup
-     const firebaseConfig = {
+           const firebaseConfig = {
   apiKey: "AIzaSyDrvKnxeqMEvJmcfwbl1bpKP8a2BXrtdb8",
   authDomain: "game-3b68a.firebaseapp.com",
   projectId: "game-3b68a",
@@ -94,6 +94,7 @@
   messagingSenderId: "835111282052",
   appId: "1:835111282052:web:2fb8a3a24fa3a98c1aa9d1"
 };
+
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         
         // Initialize Firebase
@@ -159,6 +160,7 @@
             } catch (error) {
                 console.error("Auth error:", error);
                 showToast("系統連線錯誤", "error");
+                render(); // 發生錯誤時也執行 render 以消除轉圈動畫
             }
         };
 
@@ -166,8 +168,10 @@
             state.authUser = user;
             if (user) {
                 setupRealtimeListeners();
+                render(); // 確保初次載入時能解除載入動畫，先顯示首頁外觀
             } else {
                 cleanupListeners();
+                render(); // 渲染未登入或錯誤狀態
             }
         });
 
@@ -200,6 +204,7 @@
                     render();
                 }, (error) => {
                     console.error(`Error listening to ${col}:`, error);
+                    showToast(`無法讀取資料 (${col})`, "error");
                 });
                 state.unsubscribes.push(unsubscribe);
             });
@@ -225,11 +230,16 @@
 
         // --- Rendering Logic ---
         const render = () => {
-            if (!state.authUser) return; // Wait for firebase auth
+            const content = document.getElementById('app-content');
+            
+            if (!state.authUser) {
+                // 如果沒有 authUser，顯示連線失敗或需要重整的畫面，避免一直卡在轉圈圈
+                content.innerHTML = `<div class="flex flex-col justify-center items-center h-64 text-torii"><i class="fa-solid fa-triangle-exclamation text-5xl mb-4"></i><p class="text-xl font-bold">資料庫連線失敗或認證異常，請重新整理頁面。</p></div>`;
+                return; 
+            }
             
             renderNav();
             
-            const content = document.getElementById('app-content');
             switch (state.currentPage) {
                 case 'home': content.innerHTML = tmplHome(); break;
                 case 'works': content.innerHTML = tmplWorks(); break;

@@ -125,7 +125,7 @@
             <div class="flex justify-between h-16">
                 <div class="flex items-center cursor-pointer transition hover:text-seiji" onclick="navigate('home')">
                     <i class="fa-solid fa-water text-seiji text-xl mr-3"></i>
-                    <span class="font-bold text-xl tracking-widest">櫻花盃<span class="text-sm ml-2 hidden sm:inline font-normal text-mizu">資訊應用競賽</span></span>
+                    <span id="nav-brand-text" class="font-bold text-xl tracking-widest">櫻花盃<span class="text-sm ml-2 hidden sm:inline font-normal text-mizu">資訊應用競賽</span></span>
                 </div>
                 <div class="flex items-center space-x-4 sm:space-x-6 text-sm font-semibold" id="nav-menu">
                     <!-- Nav items injected by JS -->
@@ -144,7 +144,7 @@
 
     <!-- Footer -->
     <footer class="bg-kachi text-mizu py-8 text-center text-xs border-t border-ai mt-auto">
-        <p class="tracking-widest mb-2">© 2026 櫻花盃 國小資訊應用競賽</p>
+        <p id="footer-brand-text" class="tracking-widest mb-2">© 2026 櫻花盃 國小資訊應用競賽</p>
         <p class="text-gray-500">青き志、未来を創る (Blue Ambition Creates the Future)</p>
     </footer>
 
@@ -156,7 +156,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfig = {
+            const firebaseConfig = {
   apiKey: "AIzaSyDrvKnxeqMEvJmcfwbl1bpKP8a2BXrtdb8",
   authDomain: "game-3b68a.firebaseapp.com",
   projectId: "game-3b68a",
@@ -175,7 +175,7 @@
             currentPage: 'home',
             currentUser: null,
             authUser: null,
-            data: { news: [], categories: [], works: [], users: [] },
+            data: { news: [], categories: [], works: [], users: [], settings: {} },
             unsubscribes: []
         };
 
@@ -240,11 +240,20 @@
 
         const setupRealtimeListeners = () => {
             cleanupListeners(); 
-            const collections = ['news', 'categories', 'works', 'users'];
+            const collections = ['news', 'categories', 'works', 'users', 'settings'];
             
             collections.forEach(col => {
                 const unsubscribe = onSnapshot(getCollectionRef(col), (snapshot) => {
-                    state.data[col] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    if (col === 'settings') {
+                        let settingsData = {};
+                        snapshot.forEach(doc => { if (doc.id === 'general') settingsData = doc.data(); });
+                        state.data.settings = settingsData;
+                        const mainT = settingsData.siteTitleMain || '櫻花盃';
+                        const subT = settingsData.siteTitleSub || '國小資訊應用競賽';
+                        document.title = `${mainT} ${subT}`;
+                    } else {
+                        state.data[col] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    }
                     
                     if (col === 'users' && state.data.users.length === 0) {
                         createDefaultAdmin();
@@ -316,6 +325,13 @@
             const menu = document.getElementById('nav-menu');
             const activeClass = (page) => state.currentPage === page ? 'text-seiji border-b-2 border-seiji pb-1' : 'hover:text-mizu transition pb-1';
             
+            const mainT = state.data.settings?.siteTitleMain || '櫻花盃';
+            const subT = state.data.settings?.siteTitleSub || '國小資訊應用競賽';
+            const navBrand = document.getElementById('nav-brand-text');
+            if(navBrand) navBrand.innerHTML = `${escapeHtml(mainT)}<span class="text-sm ml-2 hidden sm:inline font-normal text-mizu">${escapeHtml(subT)}</span>`;
+            const footerBrand = document.getElementById('footer-brand-text');
+            if(footerBrand) footerBrand.innerText = `© 2026 ${mainT} ${subT}`;
+
             let html = `
                 <button onclick="navigate('home')" class="${activeClass('home')} tracking-widest">首頁</button>
                 <button onclick="navigate('works')" class="${activeClass('works')} tracking-widest hidden sm:inline-block">作品大廳</button>
@@ -350,11 +366,14 @@
                     <p class="tracking-widest">尚無公告消息</p>
                 </div>`;
 
+            const mainT = state.data.settings?.siteTitleMain || '櫻花盃';
+            const subT = state.data.settings?.siteTitleSub || '國小資訊應用競賽';
+
             return `
                 <div class="text-center mb-16 mt-8">
                     <div class="inline-block">
-                        <h1 class="text-4xl md:text-5xl font-black text-ai mb-4 tracking-widest" style="text-shadow: 2px 2px 0px rgba(134,166,193,0.3);">櫻花盃</h1>
-                        <p class="text-lg text-mizu tracking-[0.2em]">國小資訊應用大賽</p>
+                        <h1 class="text-4xl md:text-5xl font-black text-ai mb-4 tracking-widest" style="text-shadow: 2px 2px 0px rgba(134,166,193,0.3);">${escapeHtml(mainT)}</h1>
+                        <p class="text-lg text-mizu tracking-[0.2em]">${escapeHtml(subT)}</p>
                     </div>
                 </div>
                 
@@ -551,6 +570,25 @@
                     </div>
                     <div class="bg-white border border-mizu">${newsListHtml}</div>
                 `;
+            } else if (window.currentAdminTab === 'settings') {
+                const currentMain = state.data.settings?.siteTitleMain || '櫻花盃';
+                const currentSub = state.data.settings?.siteTitleSub || '國小資訊應用競賽';
+                tabContent = `
+                    <div class="mb-8 border border-mizu p-5 bg-white">
+                        <h3 class="font-bold text-ai mb-4 text-sm tracking-widest flex items-center"><i class="fa-solid fa-wrench mr-2 text-seiji"></i>網站標題設定</h3>
+                        <form onsubmit="handleUpdateSiteTitle(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-xs text-gray-600 mb-1">主標題 (顯示於大字與開頭)</label>
+                                <input type="text" id="set-site-title-main" value="${escapeHtml(currentMain)}" required class="wafu-input text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-600 mb-1">副標題 (顯示於小字與說明)</label>
+                                <input type="text" id="set-site-title-sub" value="${escapeHtml(currentSub)}" required class="wafu-input text-sm">
+                            </div>
+                            <button type="submit" class="wafu-btn text-sm tracking-widest px-8">儲存設定</button>
+                        </form>
+                    </div>
+                `;
             }
 
             return `
@@ -563,6 +601,7 @@
                         <button onclick="switchAdminTab('users')" class="${tabClass('users')}">帳號管理</button>
                         <button onclick="switchAdminTab('categories')" class="${tabClass('categories')}">比賽項目</button>
                         <button onclick="switchAdminTab('news')" class="${tabClass('news')}">系統公告</button>
+                        <button onclick="switchAdminTab('settings')" class="${tabClass('settings')}">網站設定</button>
                     </div>
                     
                     <div class="wafu-card p-6 bg-washi">
@@ -829,6 +868,20 @@
                 showToast('系統公告已發佈');
                 e.target.reset();
             } catch (err) { console.error(err); showToast('發佈失敗', 'error'); }
+        };
+
+        window.handleUpdateSiteTitle = async (e) => {
+            e.preventDefault();
+            if (!state.authUser || state.currentUser?.role !== 'admin') return;
+            const mainTitle = document.getElementById('set-site-title-main').value.trim();
+            const subTitle = document.getElementById('set-site-title-sub').value.trim();
+            try {
+                await setDoc(getDocRef('settings', 'general'), { 
+                    siteTitleMain: mainTitle,
+                    siteTitleSub: subTitle
+                }, { merge: true });
+                showToast('網站標題更新完成');
+            } catch (err) { console.error(err); showToast('更新失敗', 'error'); }
         };
 
         window.handleUploadWork = async (e) => {

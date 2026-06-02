@@ -86,7 +86,14 @@
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Environment variables setup
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+     const firebaseConfig = {
+  apiKey: "AIzaSyDrvKnxeqMEvJmcfwbl1bpKP8a2BXrtdb8",
+  authDomain: "game-3b68a.firebaseapp.com",
+  projectId: "game-3b68a",
+  storageBucket: "game-3b68a.firebasestorage.app",
+  messagingSenderId: "835111282052",
+  appId: "1:835111282052:web:2fb8a3a24fa3a98c1aa9d1"
+};
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         
         // Initialize Firebase

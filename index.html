@@ -156,7 +156,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-            const firebaseConfig = {
+           const firebaseConfig = {
   apiKey: "AIzaSyDrvKnxeqMEvJmcfwbl1bpKP8a2BXrtdb8",
   authDomain: "game-3b68a.firebaseapp.com",
   projectId: "game-3b68a",
@@ -386,26 +386,36 @@
             `;
         };
 
+        window.currentCategoryFilter = window.currentCategoryFilter || '';
+
+        window.handleFilterChange = (val) => {
+            window.currentCategoryFilter = val;
+            render();
+        };
+
         const tmplWorks = () => {
             const getCatName = (id) => state.data.categories.find(c => c.id === id)?.name || '未分類';
             const getStudentName = (id) => state.data.users.find(u => u.id === id)?.name || '未知參賽者';
             
             // 只有被管理員勾選為「公開 (isPublic)」的作品才會顯示在大廳
-            const publicWorks = state.data.works.filter(w => w.isPublic === true);
+            let publicWorks = state.data.works.filter(w => w.isPublic === true);
+            
+            // 根據下拉選單篩選項目
+            if (window.currentCategoryFilter) {
+                publicWorks = publicWorks.filter(w => w.categoryId === window.currentCategoryFilter);
+            }
             
             const worksHtml = publicWorks.map(w => {
-                let totalScore = 0;
-                let scoreCount = 0;
-                if(w.scores) {
-                    Object.values(w.scores).forEach(s => { totalScore += s; scoreCount++; });
-                }
-                const avgScore = scoreCount > 0 ? (totalScore / scoreCount).toFixed(1) : '審查中';
                 const displayTitle = `${getCatName(w.categoryId)} - ${getStudentName(w.studentId)}`;
                 
-                // 獎項標籤 (如果有指定)
+                // 獎項標籤 (特別放大優等樣式)
                 let awardBadge = '';
-                if (w.award === '優等') awardBadge = `<span class="bg-[#D4AF37] bg-opacity-10 text-[#D4AF37] border border-[#D4AF37] px-1 py-0.5 ml-2 text-[10px] tracking-widest whitespace-nowrap"><i class="fa-solid fa-crown mr-1"></i>優等</span>`;
-                else if (w.award === '佳作') awardBadge = `<span class="bg-gray-200 text-gray-700 border border-gray-400 px-1 py-0.5 ml-2 text-[10px] tracking-widest whitespace-nowrap"><i class="fa-solid fa-medal mr-1"></i>佳作</span>`;
+                if (w.award === '優等') {
+                    awardBadge = `<span class="bg-[#fef9e7] text-[#B8860B] border-2 border-[#D4AF37] px-2 py-1 ml-3 text-xs font-bold tracking-widest whitespace-nowrap shadow-sm"><i class="fa-solid fa-crown mr-1 text-sm text-[#D4AF37]"></i>優等</span>`;
+                }
+                else if (w.award === '佳作') {
+                    awardBadge = `<span class="bg-gray-100 text-gray-600 border border-gray-300 px-1 py-0.5 ml-2 text-[10px] tracking-widest whitespace-nowrap"><i class="fa-solid fa-medal mr-1"></i>佳作</span>`;
+                }
 
                 return `
                 <div class="wafu-card p-5 flex flex-col justify-between cursor-pointer" onclick="viewWorkDetail('${w.id}')">
@@ -414,25 +424,40 @@
                             <span class="bg-mizu bg-opacity-20 text-ai text-xs px-2 py-1 border border-mizu">${escapeHtml(getCatName(w.categoryId))}</span>
                             <span class="text-mizu text-xs tracking-wider"><i class="fa-solid fa-eye mr-1"></i>${w.views || 0}</span>
                         </div>
-                        <h3 class="text-lg font-bold mb-2 text-ai transition flex items-start leading-snug">${escapeHtml(displayTitle)}${awardBadge}</h3>
+                        <h3 class="text-lg font-bold mb-2 text-ai transition flex items-center flex-wrap gap-y-2 leading-snug">${escapeHtml(displayTitle)}${awardBadge}</h3>
                     </div>
                     <div class="pt-4 mt-6 border-t border-gray-100 flex justify-between items-center">
-                        <span class="text-sm font-semibold text-gray-600">${escapeHtml(getStudentName(w.studentId))}</span>
-                        <span class="text-xs bg-ai text-washi px-2 py-1 rounded-sm tracking-wider">評分: ${avgScore}</span>
+                        <span class="text-sm font-semibold text-gray-600"><i class="fa-solid fa-user-pen text-mizu mr-2"></i>${escapeHtml(getStudentName(w.studentId))}</span>
+                        <!-- 公開大廳不顯示成績 -->
                     </div>
                 </div>
             `}).join('') || `
                 <div class="col-span-full text-center py-16 border border-mizu border-dashed bg-white text-mizu">
                     <i class="fa-solid fa-box-open text-4xl mb-4 opacity-50"></i>
-                    <p class="tracking-widest mb-2">大廳尚無展出作品</p>
+                    <p class="tracking-widest mb-2">大廳尚無符合的作品</p>
                     <p class="text-xs text-gray-400 tracking-widest">（得獎作品由系統審查後將公開發表於此）</p>
                 </div>`;
 
+            const catOptions = state.data.categories.map(c => 
+                `<option value="${c.id}" ${window.currentCategoryFilter === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
+            ).join('');
+
             return `
                 <div class="max-w-6xl mx-auto">
-                    <h2 class="text-2xl font-bold text-ai wafu-title-border flex items-center mb-8">
-                        <i class="fa-solid fa-chess-board mr-3 text-seiji"></i> 競賽作品大廳
-                    </h2>
+                    <div class="flex flex-col md:flex-row justify-between items-end mb-8 border-b-2 border-ai pb-4 relative">
+                        <h2 class="text-2xl font-bold text-ai flex items-center mb-4 md:mb-0">
+                            <i class="fa-solid fa-chess-board mr-3 text-seiji"></i> 競賽作品大廳
+                        </h2>
+                        <div class="w-full md:w-auto flex items-center bg-white p-2 border border-mizu shadow-sm">
+                            <label class="text-sm text-ai font-bold mr-2 whitespace-nowrap"><i class="fa-solid fa-filter text-mizu mr-1"></i>過濾項目：</label>
+                            <select onchange="handleFilterChange(this.value)" class="wafu-input text-sm !border-none !p-1 !bg-transparent !shadow-none cursor-pointer outline-none w-full min-w-[180px]">
+                                <option value="">-- 顯示全部作品 --</option>
+                                ${catOptions}
+                            </select>
+                        </div>
+                        <div class="absolute bottom-[-4px] left-0 w-[40px] h-[2px] bg-mizu"></div>
+                    </div>
+                    
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                         ${worksHtml}
                     </div>
@@ -1088,16 +1113,16 @@
             const studentName = state.data.users.find(u=>u.id===work.studentId)?.name || '未知參賽者';
             const displayTitle = `${catName} - ${studentName}`;
             
-            // 彈跳視窗的獎項標籤顯示
+            // 彈跳視窗的獎項標籤顯示 (同步放大優等樣式)
             let awardBadge = '';
-            if (work.award === '優等') awardBadge = `<span class="bg-[#D4AF37] bg-opacity-20 text-[#D4AF37] border border-[#D4AF37] px-3 py-1 text-xs tracking-widest ml-3 align-middle font-bold inline-block"><i class="fa-solid fa-crown mr-1"></i>優等</span>`;
+            if (work.award === '優等') awardBadge = `<span class="bg-[#fef9e7] text-[#B8860B] border-2 border-[#D4AF37] px-4 py-1.5 text-sm tracking-widest ml-3 align-middle font-bold inline-block shadow-sm"><i class="fa-solid fa-crown mr-2 text-[#D4AF37]"></i>優等</span>`;
             else if (work.award === '佳作') awardBadge = `<span class="bg-gray-200 text-gray-700 border border-gray-400 px-3 py-1 text-xs tracking-widest ml-3 align-middle font-bold inline-block"><i class="fa-solid fa-medal mr-1"></i>佳作</span>`;
 
             const modalContent = document.getElementById('modal-content');
             modalContent.innerHTML = `
                 <div class="mb-8 text-center border-b border-mizu pb-6 pt-4">
                     <span class="bg-mizu bg-opacity-20 text-ai text-xs px-3 py-1 border border-mizu mb-4 inline-block tracking-widest">${escapeHtml(catName)}</span>
-                    <h2 class="text-2xl font-bold text-ai mb-4 leading-relaxed">${escapeHtml(displayTitle)}${awardBadge}</h2>
+                    <h2 class="text-2xl font-bold text-ai mb-4 leading-relaxed flex flex-col items-center justify-center gap-2"><span>${escapeHtml(displayTitle)}</span> ${awardBadge}</h2>
                     <div class="flex justify-center items-center space-x-6 text-sm">
                         <span class="text-kachi font-semibold"><i class="fa-solid fa-user-pen mr-2 text-mizu"></i>${escapeHtml(studentName)}</span>
                         <span class="text-mizu">|</span>
@@ -1105,7 +1130,7 @@
                     </div>
                 </div>
                 <div class="text-center mb-4">
-                    <a href="${escapeHtml(work.driveLink)}" target="_blank" class="wafu-btn text-sm tracking-widest px-10 py-3">
+                    <a href="${escapeHtml(work.driveLink)}" target="_blank" class="wafu-btn text-sm tracking-widest px-10 py-3 shadow-md">
                         <i class="fa-brands fa-google-drive mr-3"></i>檢視完整檔案
                     </a>
                 </div>

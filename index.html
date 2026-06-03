@@ -97,8 +97,8 @@
         }
         .chalk-input::placeholder { color: rgba(244, 244, 240, 0.4); }
         
-        /* 下拉選單特別處理 (選項在某些瀏覽器需白底黑字才能看清) */
-        select.chalk-input option {
+        /* 下拉選單特別處理：強制所有選項為黑板深底，避免瀏覽器預設白底吃掉淺色字 */
+        select option {
             background-color: #2F3E46;
             color: #F4F4F0;
         }
@@ -524,7 +524,7 @@
             
             const tabClass = (tab, colorClass) => window.currentAdminTab === tab 
                 ? `chalk-btn ${colorClass} bg-${colorClass.replace('chalk-btn-','')}/10 px-4 py-2 text-sm sm:text-base z-10 relative` 
-                : 'chalk-btn text-chalk-white/50 border-transparent hover:border-chalk-white/30 px-4 py-2 text-sm sm:text-base';
+                : 'bg-transparent border-2 border-transparent text-chalk-white/50 hover:text-chalk-white hover:border-chalk-white/30 hover:bg-chalk-white/5 px-4 py-2 text-sm sm:text-base transition cursor-pointer font-black rounded-[255px_15px_225px_15px/15px_225px_15px_255px]';
 
             let tabContent = '';
             

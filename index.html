@@ -80,6 +80,8 @@
         .chalk-btn-green { color: #82E0AA; }
         .chalk-btn-blue { color: #85C1E9; }
         .chalk-btn-pink { color: #FF9CA1; }
+        .chalk-btn-orange { color: #F5CBA7; }
+        .chalk-btn-purple { color: #D2B4DE; }
 
         /* 輸入框樣式 (深色底色，白字) */
         .chalk-input {
@@ -126,7 +128,7 @@
         th, td { border-bottom: 1px dashed rgba(244,244,240,0.2); }
         tr:last-child td { border-bottom: none; }
         
-        /* 富文本編輯器內容 */
+        /* 富文本編輯器內容段落修正間距 */
         .rich-text-content p { margin-bottom: 0.25rem; line-height: 1.5; }
         .rich-text-content a { color: #85C1E9; text-decoration: underline; }
     </style>
@@ -137,7 +139,7 @@
     <nav class="bg-chalk-board/80 backdrop-blur-sm border-b-2 border-dashed border-chalk-white/30 sticky top-0 z-40 shadow-md">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-20">
-                <!-- Logo -->
+                <!-- Logo (回到作品大廳) -->
                 <div class="flex items-center cursor-pointer transform hover:scale-105 transition" onclick="navigate('works')">
                     <i class="fa-solid fa-chalkboard text-chalk-yellow text-3xl mr-3 chalk-text-shadow"></i>
                     <span class="font-black text-2xl tracking-wide text-chalk-white chalk-text-shadow" id="nav-site-title">資訊應用競賽</span>
@@ -183,7 +185,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-                  const firebaseConfig = {
+                const firebaseConfig = {
   apiKey: "AIzaSyB6NgZNLvexXfKwkW5eP4tNnkSHwuY8KyM",
   authDomain: "contactbook-c6d95.firebaseapp.com",
   projectId: "contactbook-c6d95",
@@ -215,7 +217,6 @@
         window.showToast = (message, type = 'success') => {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
-            // Toast style matches chalkboard theme
             const colorClass = type === 'success' ? 'text-chalk-green' : 'text-chalk-pink';
             const icon = type === 'success' ? 'fa-check' : 'fa-xmark';
             
@@ -418,7 +419,7 @@
             `}).join('') || `
                 <div class="col-span-full text-center py-16 chalk-card border-chalk-white/20">
                     <i class="fa-solid fa-box-open text-6xl text-chalk-white/20 mb-4"></i>
-                    <p class="text-chalk-white/60 font-bold text-lg">黑板上目前還沒有公開的作品喔！</p>
+                    <p class="text-chalk-white/60 font-bold text-lg">黑板上目前還沒有公開的得獎作品喔！</p>
                 </div>`;
 
             const catOptions = state.data.categories.map(c => `<option value="${c.id}" ${window.currentFilterCat === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
@@ -699,8 +700,10 @@
                             <td class="p-3 text-center">
                                 <input type="checkbox" onchange="updateWorkVisibility('${w.id}', this.checked)" ${w.isPublic ? 'checked' : ''} class="w-5 h-5 cursor-pointer accent-chalk-green">
                             </td>
-                            <td class="p-3 text-right">
-                                <a href="${escapeHtml(w.driveLink)}" target="_blank" class="chalk-btn chalk-btn-blue text-sm px-3 py-1 hover:bg-chalk-blue/20 inline-block"><i class="fa-solid fa-arrow-up-right-from-square"></i> 作品連結</a>
+                            <td class="p-3 text-right whitespace-nowrap">
+                                <a href="${escapeHtml(w.driveLink)}" target="_blank" class="text-chalk-blue hover:text-chalk-white transition p-2" title="開啟雲端硬碟"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                                <button onclick="openEditWorkModal('${w.id}')" class="text-chalk-green hover:text-chalk-white transition p-2" title="修改學生作品資料"><i class="fa-solid fa-pen"></i></button>
+                                <button onclick="deleteDocHandler('works', '${w.id}')" class="text-chalk-pink hover:text-chalk-white transition p-2" title="刪除這個作品"><i class="fa-solid fa-trash"></i></button>
                             </td>
                         </tr>
                     `;
@@ -708,12 +711,12 @@
 
                  tabContent = `
                     <div class="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-chalk-yellow/10 p-4 rounded-xl border border-dashed border-chalk-yellow/50">
-                        <p class="text-sm font-bold text-chalk-yellow mb-3 sm:mb-0"><i class="fa-solid fa-circle-info mr-1 text-lg align-middle"></i> 設定獎項並勾選「公開顯示」後，作品才會出現在大廳喔！</p>
+                        <p class="text-sm font-bold text-chalk-yellow mb-3 sm:mb-0"><i class="fa-solid fa-circle-info mr-1 text-lg align-middle"></i> 設定獎項並勾選「公開顯示」後，作品才會出現在大廳喔！點擊右側鉛筆可修改作品網址。</p>
                         <button onclick="exportScoresToCSV()" class="chalk-btn chalk-btn-green px-5 py-2 text-sm hover:bg-chalk-green/20 whitespace-nowrap"><i class="fa-solid fa-file-csv mr-1"></i> 匯出成績</button>
                     </div>
                     <div class="border border-chalk-white/20 rounded-xl overflow-hidden bg-chalk-board/30 overflow-x-auto">
                         <table class="w-full text-left min-w-[750px]">
-                            <thead><tr class="bg-black/20 text-sm text-chalk-white/70"><th class="p-3 font-black">比賽項目</th><th class="p-3 font-black">學生</th><th class="p-3 font-black">平均分數</th><th class="p-3 font-black">指定獎項</th><th class="p-3 text-center font-black">大廳公開顯示</th><th class="p-3 text-right font-black">連結</th></tr></thead>
+                            <thead><tr class="bg-black/20 text-sm text-chalk-white/70"><th class="p-3 font-black">比賽項目</th><th class="p-3 font-black">學生</th><th class="p-3 font-black">平均分數</th><th class="p-3 font-black">指定獎項</th><th class="p-3 text-center font-black">大廳公開</th><th class="p-3 text-right font-black">操作</th></tr></thead>
                             <tbody>${gradesHtml}</tbody>
                         </table>
                     </div>
@@ -754,7 +757,6 @@
                             <div>
                                 <label class="block font-bold mb-1 text-sm text-chalk-white/80">內容</label>
                                 <div class="border border-chalk-white/30 border-b-0 rounded-t-lg bg-black/30 p-2 flex space-x-2">
-                                    <!-- 同上方編輯器工具列 -->
                                     <button type="button" onclick="document.execCommand('bold',false,null)" class="w-8 h-8 flex items-center justify-center text-chalk-white hover:bg-chalk-white/20 rounded font-bold" title="粗體"><i class="fa-solid fa-bold"></i></button>
                                     <button type="button" onclick="document.execCommand('fontSize',false,'5')" class="px-2 h-8 flex items-center justify-center text-chalk-white hover:bg-chalk-white/20 rounded font-bold text-sm" title="大字">大</button>
                                     <button type="button" onclick="document.execCommand('fontSize',false,'3')" class="px-2 h-8 flex items-center justify-center text-chalk-white hover:bg-chalk-white/20 rounded font-bold text-sm" title="一般字">中</button>
@@ -774,6 +776,31 @@
                             <div class="pt-4 text-right flex justify-end space-x-3">
                                 <button type="button" onclick="closeEditNewsModal()" class="chalk-btn chalk-btn-white px-6 py-2 hover:bg-chalk-white/10">取消</button>
                                 <button type="submit" class="chalk-btn chalk-btn-pink px-8 py-2 hover:bg-chalk-pink/20">儲存修改</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- 修改學生作品 Modal -->
+                <div id="edit-work-modal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
+                    <div class="chalk-card w-full max-w-2xl p-8 relative border-t-4 border-t-chalk-blue bg-chalk-board">
+                        <button type="button" onclick="closeEditWorkModal()" class="absolute top-4 right-4 text-chalk-white/50 hover:text-chalk-pink text-2xl transition"><i class="fa-solid fa-xmark"></i></button>
+                        <h3 class="font-black text-2xl mb-4 text-chalk-white border-b border-dashed border-chalk-white/20 pb-3"><i class="fa-solid fa-pen mr-2 text-chalk-blue"></i>修改學生作品資料</h3>
+                        <form onsubmit="submitEditWork(event)" class="space-y-4 text-left">
+                            <input type="hidden" id="edit-w-id">
+                            <div>
+                                <label class="block font-bold mb-2 text-sm text-chalk-white/80">比賽項目</label>
+                                <select id="edit-w-category" class="chalk-input w-full cursor-pointer">
+                                    ${state.data.categories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-bold mb-2 text-sm text-chalk-white/80">雲端硬碟連結</label>
+                                <input type="url" id="edit-w-link" required class="chalk-input w-full">
+                            </div>
+                            <div class="pt-6 text-right flex justify-end space-x-3">
+                                <button type="button" onclick="closeEditWorkModal()" class="chalk-btn chalk-btn-white px-6 py-2 hover:bg-chalk-white/10">取消</button>
+                                <button type="submit" class="chalk-btn chalk-btn-blue px-8 py-2 hover:bg-chalk-blue/20">儲存修改</button>
                             </div>
                         </form>
                     </div>

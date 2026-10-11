@@ -183,7 +183,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-            const firebaseConfig = {
+               const firebaseConfig = {
   apiKey: "AIzaSyB6NgZNLvexXfKwkW5eP4tNnkSHwuY8KyM",
   authDomain: "contactbook-c6d95.firebaseapp.com",
   projectId: "contactbook-c6d95",
@@ -1129,6 +1129,32 @@
                 await updateDoc(getDocRef('news', id), { title, content, attachments });
                 showToast('黑板公告修改成功！');
                 closeEditNewsModal();
+            } catch (err) { console.error(err); showToast('修改失敗', 'error'); }
+        };
+
+        /* Edit Work Logic (Admin) */
+        window.openEditWorkModal = (id) => {
+            const work = state.data.works.find(w => w.id === id);
+            if (!work) return;
+            document.getElementById('edit-w-id').value = id;
+            document.getElementById('edit-w-category').value = work.categoryId;
+            document.getElementById('edit-w-link').value = work.driveLink;
+            document.getElementById('edit-work-modal').classList.remove('hidden');
+        };
+
+        window.closeEditWorkModal = () => { document.getElementById('edit-work-modal').classList.add('hidden'); };
+
+        window.submitEditWork = async (e) => {
+            e.preventDefault();
+            if (!state.authUser || state.currentUser?.role !== 'admin') return;
+            const id = document.getElementById('edit-w-id').value;
+            const categoryId = document.getElementById('edit-w-category').value;
+            const driveLink = document.getElementById('edit-w-link').value.trim();
+
+            try {
+                await updateDoc(getDocRef('works', id), { categoryId, driveLink });
+                showToast('學生作品資料已修改！');
+                closeEditWorkModal();
             } catch (err) { console.error(err); showToast('修改失敗', 'error'); }
         };
 
